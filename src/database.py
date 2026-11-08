@@ -1,16 +1,22 @@
 """Database connection utilities."""
 
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
 from src.models import DrugAlert
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
+DB_PATH = DATA_DIR / "recalls.db"
+CSV_PATH = DATA_DIR / "recalls.csv"
+
 
 def create_table():
     """Create a table in SQLite."""
 
-    with sqlite3.connect("data/recalls.db") as conn:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
 
         query = """
@@ -76,7 +82,7 @@ def upsert_df(conn: sqlite3.Connection, data: list[DrugAlert]) -> None:
 def create_csv():
     """Create a CSV file from the database."""
 
-    with sqlite3.connect("data/recalls.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
 
         query = "SELECT * FROM recalls"
@@ -125,4 +131,4 @@ def create_csv():
             "URL",
         ]
     ]
-    df.to_csv("data/recalls.csv", index=False)
+    df.to_csv(CSV_PATH, index=False)

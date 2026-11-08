@@ -4,7 +4,12 @@ CLI scrapers for oncology medicine recalls from FDA Ghana, FDA USA, NAFDAC, and 
 
 ## Run locally
 
-From this directory, install the locked dependencies with [uv](https://docs.astral.sh/uv/):
+Running the API and frontend together is documented in the workspace README one
+directory up, which owns every Make target; the Makefile here only forwards to
+it, so `make api` works from either directory. The rest of this file covers the
+scrapers, which are specific to this repository.
+
+Install the locked dependencies with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync
@@ -25,13 +30,13 @@ PYTHONPATH=.:src uv run python src/main.py --start-date 2024-01-01
 To refresh the oncology drug list from the NCI instead:
 
 ```bash
-PYTHONPATH=src uv run python src/main.py --update-drug-database
+PYTHONPATH=.:src uv run python src/main.py --update-drug-database
 ```
 
 The scraper writes:
 
-- `data/recalls.db` — SQLite database
-- `data/recalls.csv` — exported recall report
+- `src/data/recalls.db` — SQLite database
+- `src/data/recalls.csv` — exported recall report
 - `src/data/nci_oncology_drugs.json` — updated by `--update-drug-database`
 
 Set `LOG_LEVEL` to change logging verbosity, for example:
@@ -45,3 +50,7 @@ LOG_LEVEL=DEBUG PYTHONPATH=.:src uv run python src/main.py
 ```bash
 uv run pytest
 ```
+
+Configuration lives in `env.example`; copy it to `.env`, which is ignored.
+Every operational value the API reads comes from the environment, so no key,
+path, limit, or label is hardcoded.

@@ -4,6 +4,7 @@ import hashlib
 import json
 from abc import ABC, abstractmethod
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, final
 
 import requests
@@ -12,6 +13,8 @@ from bs4 import BeautifulSoup
 from src.models import DrugAlert
 
 from .utils import extract_drug_token, normalize_drug_name, read_json
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 class BaseScraper(ABC):
@@ -24,8 +27,8 @@ class BaseScraper(ABC):
         args: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
         start_date: Optional[datetime] = None,
-        db_bath: str = "data/recalls.db",
-        oncology_drugs_path: str = "data/nci_oncology_drugs.json",
+        db_bath: Optional[str] = None,
+        oncology_drugs_path: Optional[str] = None,
     ) -> None:
         """Initialize the scraper with a base URL and optional request args."""
 
@@ -42,9 +45,9 @@ class BaseScraper(ABC):
             "User-Agent",
             "Mozilla/5.0 (compatible; EDM-Dashboard/1.0; +https://everydosematters.org)",
         )
-        self.oncology_drugs_path = oncology_drugs_path
+        self.oncology_drugs_path = oncology_drugs_path or str(DATA_DIR / "nci_oncology_drugs.json")
         self.oncology_drugs = read_json(self.oncology_drugs_path)
-        self.db_path = db_bath
+        self.db_path = db_bath or str(DATA_DIR / "recalls.db")
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
         """Fetch a URL and return minimal response metadata plus parsed HTML."""
@@ -125,6 +128,6 @@ class BaseScraper(ABC):
         # Remove duplicates while preserving order
         drug_names = list(dict.fromkeys(drug_names))
         self.oncology_drugs = drug_names
-        with open("data/nci_oncology_drugs.json", "w") as f:
+        with open(self.oncology_drugs_path, "w") as f:
             json.dump(drug_names, f, indent=2)
         return drug_names

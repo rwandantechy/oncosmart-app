@@ -13,6 +13,67 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
+from tests.accounts import ACCOUNT  # noqa: E402, I001
+
+
+# Signing secret for workspace tokens in tests. The real one comes from .env.
+AUTH_SECRET = "test-signing-secret"
+
+
+@pytest.fixture
+def auth_env(monkeypatch):
+    """Configure authentication so refusals are about the token, not the setup."""
+    monkeypatch.setenv("MONGODB_URI", "mongodb://localhost:27017/test")
+    monkeypatch.setenv("V2_AUTH_SECRET", AUTH_SECRET)
+    return AUTH_SECRET
+
+
+@pytest.fixture
+def access_token(auth_env):
+    """Mint a workspace token, overriding any claim the test cares about."""
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from apps.api.core import settings
+
+    def mint(expires_in_hours: float = 1.0, **claims) -> str:
+        now = datetime.now(timezone.utc)
+        return jwt.encode(
+            {
+                "sub": ACCOUNT["id"],
+                "email": ACCOUNT["email"],
+                "name": ACCOUNT["name"],
+                "role": settings.DEFAULT_USER_ROLE,
+                "iat": now,
+                "exp": now + timedelta(hours=expires_in_hours),
+                **claims,
+            },
+            auth_env,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+    return mint
+
+
+@pytest.fixture
+def api_client():
+    """An anonymous caller, like a visitor searching for a medicine."""
+    from fastapi.testclient import TestClient
+
+    from apps.api.app import app
+
+    return TestClient(app)
+
+
+@pytest.fixture
+def workspace_client(api_client, access_token):
+    """A signed-in researcher."""
+    from apps.api.core import settings
+
+    api_client.headers["Authorization"] = f"{settings.AUTH_SCHEME} {access_token()}"
+    return api_client
+
 
 def _load_module(module_name: str, path: Path):
     spec = importlib.util.spec_from_file_location(module_name, str(path))

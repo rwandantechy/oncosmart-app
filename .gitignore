@@ -177,3 +177,7 @@ seed/production/profiles_hub.*
 # json, text, lock files, for the meantime
 # **/*.json
 **/*.txt
+# Local credential files
+safe/
+*.env
+!env.example
