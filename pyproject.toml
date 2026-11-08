@@ -53,3 +53,6 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.vercel]
+entrypoint = "apps.api.app:app"
