@@ -137,7 +137,7 @@ def health_cache_seconds() -> float:
 # --- Storage and transport --------------------------------------------------
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "v2.db"
-DEFAULT_CORS_ORIGINS = "http://localhost:5173"
+DEFAULT_CORS_ORIGINS = "http://localhost:5173,https://oncosmart.vercel.app"
 
 # Auth can rotate a session with PATCH; everything else is GET or POST.
 CORS_METHODS = tuple(os.getenv("V2_CORS_METHODS", "GET,POST,PATCH").split(","))
