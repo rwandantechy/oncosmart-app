@@ -27,12 +27,9 @@ AI_PREF_ID = "ai_providers"
 PROVIDER_LABELS = {
     settings.GEMINI: "Gemini",
     settings.OPENROUTER: "OpenRouter",
-    settings.OLLAMA: "Ollama",
 }
 
-ProviderConfig = (
-    settings.OllamaSettings | settings.GeminiSettings | settings.OpenRouterSettings
-)
+ProviderConfig = settings.GeminiSettings | settings.OpenRouterSettings
 
 
 class ProviderError(RuntimeError):
@@ -110,35 +107,6 @@ class Provider:
 
     def generate_json(self, prompt: str, *, timeout: float, max_output_tokens: int) -> dict:
         raise NotImplementedError
-
-
-class OllamaProvider(Provider):
-    """Local Ollama daemon speaking the /api/generate protocol."""
-
-    config: settings.OllamaSettings
-
-    def available(self) -> bool:
-        return _reachable(f"{self.config.url}/api/tags", {}, self.config.health_timeout)
-
-    def generate_json(self, prompt: str, *, timeout: float, max_output_tokens: int) -> dict:
-        payload = {
-            "model": self.config.model,
-            "prompt": prompt,
-            "stream": False,
-            "format": "json",
-            "think": False,
-            "options": {"temperature": 0, "num_predict": max_output_tokens},
-        }
-        try:
-            body = _post_json(f"{self.config.url}/api/generate", payload, {}, timeout)
-        except (OSError, ValueError, ProviderError) as exc:
-            raise ProviderError(f"Ollama request failed: {exc}") from exc
-
-        text = body.get("response") or body.get("thinking") or ""
-        try:
-            return _json_object(text)
-        except json.JSONDecodeError as exc:
-            raise ProviderError("Ollama returned output that is not JSON") from exc
 
 
 class GeminiProvider(Provider):
@@ -259,7 +227,7 @@ def build_provider(name: str) -> Provider:
         return GeminiProvider(settings.gemini_settings())
     if name == settings.OPENROUTER:
         return OpenRouterProvider(settings.openrouter_settings())
-    return OllamaProvider(settings.ollama_settings())
+    raise ProviderError(f"Unknown AI provider: {name}")
 
 
 @lru_cache(maxsize=1)
@@ -302,10 +270,17 @@ def _read_admin_chain() -> list[str] | None:
         return None
     fallback = document.get("fallback")
     fallback_s = str(fallback).strip().lower() if fallback else None
-    try:
-        return _normalize_chain(primary, fallback_s)
-    except PreferenceError:
-        return None
+    # Drop removed/unknown names (e.g. legacy ollama) instead of discarding the chain.
+    names: list[str] = []
+    for name in (primary, fallback_s):
+        if not name:
+            continue
+        if name not in settings.PROVIDER_NAMES:
+            logger.warning("Ignoring stored AI provider %r", name)
+            continue
+        if name not in names:
+            names.append(name)
+    return names or None
 
 
 def runtime_chain_names() -> list[str]:
@@ -319,7 +294,7 @@ def runtime_chain_names() -> list[str]:
 def active_provider() -> Provider:
     """Build the primary provider from the runtime failover chain."""
     names = runtime_chain_names()
-    return build_provider(names[0] if names else settings.OLLAMA)
+    return build_provider(names[0] if names else settings.GEMINI)
 
 
 def provider_chain() -> list[Provider]:
@@ -338,7 +313,7 @@ def admin_ai_settings() -> dict[str, Any]:
     """Status payload for the admin AI switcher. Never includes credentials."""
     admin_chain = _read_admin_chain()
     chain_names = admin_chain or settings.provider_chain_names()
-    primary = chain_names[0] if chain_names else settings.OLLAMA
+    primary = chain_names[0] if chain_names else settings.GEMINI
     fallback = chain_names[1] if len(chain_names) > 1 else None
     options: list[dict[str, Any]] = []
     for name in settings.PROVIDER_NAMES:

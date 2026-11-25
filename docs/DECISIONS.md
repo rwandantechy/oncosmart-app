@@ -19,17 +19,15 @@ snapshot. The source file is never modified.
 
 ## AI
 
-The first explanation provider is optional local Ollama; Gemini is not
-integrated. Search, detail, and analytics work without AI. When the feature
-flag is off, the API returns a deterministic template based only on imported
-fields and labels it as an alert summary. When enabled, the server sends
-selected evidence to Ollama, validates structured output, and falls back to
-the deterministic summary when Ollama is unavailable or unsupported. Any
-future provider must remain server-side, feature-flagged, validated,
-rate-limited, and clearly separated from regulator wording.
-
-The currently available local models were `qwen3:0.6b` and `qwen3:4b`;
-`qwen3:8b` was not installed. The model is configured with `OLLAMA_MODEL`.
+Supported model backends are Gemini and OpenRouter, with optional failover
+(`AI_PROVIDER` / `AI_FALLBACK_PROVIDER` or `AI_PROVIDERS`). Search, detail, and
+analytics work without AI. When the feature flag is off, the API returns a
+deterministic template based only on imported fields and labels it as an alert
+summary. When enabled, the server sends selected evidence to the configured
+provider chain, validates structured output, and falls back to the
+deterministic summary when every provider fails or is unconfigured. Providers
+must remain server-side, feature-flagged, validated, rate-limited, and clearly
+separated from regulator wording.
 
 ## Research workspace
 

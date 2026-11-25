@@ -9,13 +9,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-OLLAMA = "ollama"
 GEMINI = "gemini"
 OPENROUTER = "openrouter"
-PROVIDER_NAMES = (OLLAMA, GEMINI, OPENROUTER)
+PROVIDER_NAMES = (GEMINI, OPENROUTER)
 
-DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
-DEFAULT_OLLAMA_MODEL = "qwen3:0.6b"
 DEFAULT_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 # gemini-2.5-flash is closed to new API keys and returns 404 on generateContent.
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
@@ -49,22 +46,6 @@ def _whole(name: str, default: int) -> int:
     except ValueError:
         logger.warning("%s is not an integer; using %s", name, default)
         return default
-
-
-@dataclass(frozen=True)
-class OllamaSettings:
-    """Connection details for a local Ollama daemon."""
-
-    url: str
-    model: str
-    ask_timeout: float
-    explain_timeout: float
-    health_timeout: float
-    name: str = OLLAMA
-
-    @property
-    def configured(self) -> bool:
-        return bool(self.url)
 
 
 @dataclass(frozen=True)
@@ -112,7 +93,7 @@ def ai_enabled() -> bool:
 def provider_name() -> str:
     """Primary provider from ``AI_PROVIDER`` (first entry of the failover chain)."""
     chain = provider_chain_names()
-    return chain[0] if chain else OLLAMA
+    return chain[0] if chain else GEMINI
 
 
 def provider_chain_names() -> list[str]:
@@ -125,7 +106,7 @@ def provider_chain_names() -> list[str]:
     if raw_list:
         names = [part.strip().lower() for part in raw_list.split(",") if part.strip()]
     else:
-        primary = os.getenv("AI_PROVIDER", OLLAMA).strip().lower() or OLLAMA
+        primary = os.getenv("AI_PROVIDER", GEMINI).strip().lower() or GEMINI
         fallback = os.getenv("AI_FALLBACK_PROVIDER", "").strip().lower()
         names = [primary]
         if fallback and fallback != primary:
@@ -142,17 +123,7 @@ def provider_chain_names() -> list[str]:
             continue
         if name not in ordered:
             ordered.append(name)
-    return ordered or [OLLAMA]
-
-
-def ollama_settings() -> OllamaSettings:
-    return OllamaSettings(
-        url=os.getenv("OLLAMA_URL", DEFAULT_OLLAMA_URL).rstrip("/"),
-        model=os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
-        ask_timeout=_number("AI_ASK_TIMEOUT", 12.0),
-        explain_timeout=_number("AI_EXPLAIN_TIMEOUT", 45.0),
-        health_timeout=_number("AI_HEALTH_TIMEOUT", 0.4),
-    )
+    return ordered or [GEMINI]
 
 
 def gemini_settings() -> GeminiSettings:

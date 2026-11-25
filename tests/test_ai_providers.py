@@ -24,12 +24,14 @@ def clean_ai_env(monkeypatch):
     """Each test starts from an unconfigured environment and an empty probe cache."""
     for name in (
         "AI_PROVIDER",
+        "AI_FALLBACK_PROVIDER",
+        "AI_PROVIDERS",
         "V2_AI_ENABLED",
         "GEMINI_API_KEY",
         "GEMINI_MODEL",
         "GEMINI_THINKING_BUDGET",
-        "OLLAMA_MODEL",
-        "OLLAMA_URL",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
     ):
         monkeypatch.delenv(name, raising=False)
     ai_providers.clear_availability_cache()
@@ -37,12 +39,12 @@ def clean_ai_env(monkeypatch):
     ai_providers.clear_availability_cache()
 
 
-def test_default_provider_is_local_ollama():
+def test_default_provider_is_gemini():
     provider = ai_providers.active_provider()
 
-    assert isinstance(provider, ai_providers.OllamaProvider)
-    assert provider.name == "ollama"
-    assert provider.model == settings.DEFAULT_OLLAMA_MODEL
+    assert isinstance(provider, ai_providers.GeminiProvider)
+    assert provider.name == "gemini"
+    assert provider.model == settings.DEFAULT_GEMINI_MODEL
 
 
 def test_gemini_is_selected_by_env(monkeypatch):
@@ -55,34 +57,47 @@ def test_gemini_is_selected_by_env(monkeypatch):
     assert provider.model == settings.DEFAULT_GEMINI_MODEL
 
 
-def test_unknown_provider_falls_back_to_ollama(monkeypatch):
+def test_unknown_provider_falls_back_to_gemini(monkeypatch):
     monkeypatch.setenv("AI_PROVIDER", "openai")
 
-    assert settings.provider_name() == "ollama"
+    assert settings.provider_name() == "gemini"
 
 
 def test_explanation_model_matches_the_configured_model(monkeypatch):
     """The reported model used to be hardcoded and disagreed with the request."""
-    monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
-    sent = {}
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key-value")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-custom-test")
+    captured = {}
 
     def fake_post(url, payload, headers, timeout):
-        sent.update(payload)
+        captured.update(url=url, payload=payload)
         return {
-            "response": json.dumps({
-                "what_happened": "A regulator published a notice.",
-                "why_it_matters": "It concerns the named product.",
-                "what_to_do_next": "Read the original notice.",
-                "limitations": ["Imported record only."],
-            })
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": json.dumps({
+                                    "what_happened": "A regulator published a notice.",
+                                    "why_it_matters": "It concerns the named product.",
+                                    "what_to_do_next": "Read the original notice.",
+                                    "limitations": ["Imported record only."],
+                                })
+                            }
+                        ]
+                    }
+                }
+            ]
         }
 
     monkeypatch.setattr(ai_providers, "_post_json", fake_post)
 
     result = explain_alert_record(RECORD)
 
-    assert result["provider"] == "ollama"
-    assert result["model"] == "qwen3:8b" == sent["model"]
+    assert result["provider"] == "gemini"
+    assert result["model"] == "gemini-custom-test"
+    assert captured["url"].endswith("/models/gemini-custom-test:generateContent")
 
 
 def test_gemini_request_is_json_constrained_and_key_stays_in_the_header(monkeypatch):
@@ -155,6 +170,9 @@ def test_gemini_without_a_key_degrades_instead_of_failing(monkeypatch):
 
 
 def test_unreachable_provider_degrades(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key-value")
+
     def fake_post(url, payload, headers, timeout):
         raise OSError("connection refused")
 
@@ -253,3 +271,16 @@ def test_disabled_ai_skips_providers_entirely(monkeypatch):
 
     assert explain_alert_record(RECORD)["provider"] == "deterministic"
     assert answer_research_question("Anything?", [RECORD], SUMMARY)["provider"] == "unavailable"
+
+
+def test_admin_settings_exclude_ollama(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key-value")
+    monkeypatch.setattr(ai_providers, "_reachable", lambda url, headers, timeout: True)
+    monkeypatch.setattr(ai_providers, "_read_admin_chain", lambda: None)
+
+    payload = ai_providers.admin_ai_settings()
+    names = [option["name"] for option in payload["options"]]
+
+    assert "ollama" not in names
+    assert names == ["gemini", "openrouter"]
