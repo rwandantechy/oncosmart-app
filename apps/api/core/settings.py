@@ -17,7 +17,7 @@ DEFAULT_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 # gemini-2.5-flash is closed to new API keys and returns 404 on generateContent.
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 DEFAULT_OPENROUTER_URL = "https://openrouter.ai/api/v1"
-DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash"
+DEFAULT_OPENROUTER_MODEL = "openai/gpt-4o-mini"
 
 _TRUTHY = {"1", "true", "yes", "on"}
 
@@ -186,7 +186,9 @@ NCI_DRUG_INFO_URL = os.getenv(
 )
 
 # Auth can rotate a session with PATCH; everything else is GET or POST.
-CORS_METHODS = tuple(os.getenv("V2_CORS_METHODS", "GET,POST,PATCH,DELETE").split(","))
+CORS_METHODS = tuple(
+    os.getenv("V2_CORS_METHODS", "GET,POST,PUT,PATCH,DELETE").split(",")
+)
 CORS_HEADERS = tuple(os.getenv("V2_CORS_HEADERS", "*").split(","))
 # The CSV export is fetched with an access token rather than followed as a
 # link, so the browser needs permission to read the filename the API chose.
